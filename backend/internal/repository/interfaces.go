@@ -12,6 +12,7 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.User, error)
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetByUsername(ctx context.Context, username string) (*domain.User, error)
+	List(ctx context.Context, username string, limit, offset int) ([]domain.User, int64, error)
 	UpdatePassword(ctx context.Context, id int64, hashedPassword string) error
 	Delete(ctx context.Context, id int64) error
 	GetStats(ctx context.Context, userID int64) (*domain.UserStats, error)

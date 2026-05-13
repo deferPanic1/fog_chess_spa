@@ -8,6 +8,7 @@ import (
 )
 
 const pgUniqueViolation = "23505"
+const pgForeignKeyViolation = "23503"
 
 func isUniqueViolation(err error, constraintName string) bool {
 	var pgErr *pgconn.PgError
@@ -16,4 +17,9 @@ func isUniqueViolation(err error, constraintName string) bool {
 			strings.Contains(pgErr.ConstraintName, constraintName)
 	}
 	return false
+}
+
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation
 }

@@ -16,4 +16,10 @@ export const userApi = {
   history(page = 1, limit = 10) {
     return http.get('/api/v1/users/history', { params: { page, limit } })
   },
+  adminList({ page = 1, limit = 10, username = '' } = {}) {
+    return http.get('/api/v1/admin/users', { params: { page, limit, username } })
+  },
+  deleteById(id) {
+    return http.delete(`/api/v1/admin/users/${id}`)
+  },
 }

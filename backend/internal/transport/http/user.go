@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Gilf4/fog_chess/internal/domain/models"
 	"github.com/Gilf4/fog_chess/internal/repository"
@@ -16,8 +17,10 @@ import (
 
 type userService interface {
 	GetByID(ctx context.Context, id int64) (*models.User, error)
+	List(ctx context.Context, username string, limit, offset int) ([]models.User, int64, error)
 	GetStats(ctx context.Context, userID int64) (*models.UserStats, error)
 	GetMatchHistory(ctx context.Context, userID int64, limit, offset int) ([]models.MatchHistoryItem, int64, error)
+	Delete(ctx context.Context, id int64) error
 }
 
 type UserHandler struct {
@@ -53,6 +56,29 @@ func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
+	pagination := readPagination(r)
+	username := strings.TrimSpace(r.URL.Query().Get("username"))
+
+	users, total, err := h.userService.List(r.Context(), username, pagination.Limit, pagination.Offset)
+	if err != nil {
+		h.log.Error("failed to list users", slog.String("username", username), slog.Any("err", err))
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	items := make([]dto.UserResponse, 0, len(users))
+	for _, user := range users {
+		userCopy := user
+		items = append(items, dto.NewUserResponse(&userCopy))
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"users":      items,
+		"pagination": newPaginationMeta(pagination.Page, pagination.Limit, total),
+	})
+}
+
 func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserID(r.Context())
 	if !ok {
@@ -74,6 +100,42 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user": dto.NewUserResponse(user),
 	})
+}
+
+func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	currentUserID, ok := middleware.GetUserID(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	rawID := chi.URLParam(r, "id")
+	userID, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	if userID == currentUserID {
+		writeError(w, http.StatusBadRequest, "cannot delete current admin")
+		return
+	}
+
+	if err := h.userService.Delete(r.Context(), userID); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		if errors.Is(err, repository.ErrUserInUse) {
+			writeError(w, http.StatusConflict, "cannot delete user with matches or lobbies")
+			return
+		}
+		h.log.Error("failed to delete user", slog.Int64("user_id", userID), slog.Any("err", err))
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *UserHandler) Stats(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +172,7 @@ func (h *UserHandler) History(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"history":     history,
+		"history":    history,
 		"pagination": newPaginationMeta(pagination.Page, pagination.Limit, total),
 	})
 }

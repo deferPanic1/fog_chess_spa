@@ -7,6 +7,7 @@ var (
 	ErrNotFound       = errors.New("user not found")
 	ErrEmailExists    = errors.New("email already exists")
 	ErrUsernameExists = errors.New("username already exists")
+	ErrUserInUse      = errors.New("user is referenced by other records")
 
 	//lobby errors
 	ErrInvalidTimeControl  = errors.New("invalid time control")

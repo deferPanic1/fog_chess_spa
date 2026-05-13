@@ -50,6 +50,13 @@ func registerRoutes(
 			r.Get("/users/{id}", userHandler.GetByID)
 		})
 
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Auth(jwt.Secret))
+			r.Use(middleware.AdminOnly)
+			r.Get("/admin/users", userHandler.List)
+			r.Delete("/admin/users/{id}", userHandler.Delete)
+		})
+
 		// lobbies
 		r.Route("/lobbies", func(r chi.Router) {
 			r.Get("/", lobbyHandler.List)

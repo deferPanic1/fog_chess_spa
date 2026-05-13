@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Gilf4/fog_chess/internal/domain/models"
@@ -70,6 +71,30 @@ func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*models.
 	return &user, nil
 }
 
+func (r *UserRepo) List(ctx context.Context, username string, limit, offset int) ([]models.User, int64, error) {
+	var users []models.User
+
+	query := r.db.WithContext(ctx).Model(&models.User{})
+	if username != "" {
+		query = query.Where("LOWER(username) LIKE ?", "%"+strings.ToLower(username)+"%")
+	}
+
+	var total int64
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count users: %w", err)
+	}
+
+	if err := query.Session(&gorm.Session{}).
+		Order("username ASC").
+		Offset(offset).
+		Limit(limit).
+		Find(&users).Error; err != nil {
+		return nil, 0, fmt.Errorf("list users: %w", err)
+	}
+
+	return users, total, nil
+}
+
 func (r *UserRepo) UpdatePassword(ctx context.Context, id int64, hashedPassword string) error {
 	result := r.db.WithContext(ctx).
 		Model(&models.User{}).
@@ -87,6 +112,9 @@ func (r *UserRepo) UpdatePassword(ctx context.Context, id int64, hashedPassword 
 func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 	result := r.db.WithContext(ctx).Delete(&models.User{}, id)
 	if result.Error != nil {
+		if isForeignKeyViolation(result.Error) {
+			return repository.ErrUserInUse
+		}
 		return result.Error
 	}
 	if result.RowsAffected == 0 {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Gilf4/fog_chess/internal/domain/models"
 	"github.com/Gilf4/fog_chess/internal/service"
 )
 
@@ -46,6 +47,20 @@ func GetUserID(ctx context.Context) (int64, bool) {
 func GetRole(ctx context.Context) (string, bool) {
 	role, ok := ctx.Value(roleKey).(string)
 	return role, ok
+}
+
+func AdminOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role, ok := GetRole(r.Context())
+		if !ok || role != models.RoleAdmin {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"})
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func resolveToken(r *http.Request) string {

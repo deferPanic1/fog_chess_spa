@@ -9,14 +9,9 @@ Frontend: [http://localhost:5173](http://localhost:5173)
 После старта контейнеров нужно отдельно применить миграции:
 
 ```bash
-make migrate-up
+make migrate-up DB_HOST=localhost
 ```
 
-Проверить статус миграций можно командой:
-
-```bash
-make migrate-status
-```
 
 ## Архитектура проекта
 
